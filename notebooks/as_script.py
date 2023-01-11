@@ -224,6 +224,7 @@ def n_skewed_gaussian(x, a, b, c, d):
     retData = np.zeros(len(x))
     for i in range(length):
         retData = retData+skewed_gaussian(x, a[i], b[i], c[i], d[i])
+
     return retData
 
 # n_skewed_gaussian with (a,b,c,d) expanded
@@ -305,7 +306,8 @@ def generate_bounds(a, b, c, d):
 # fits n gaussian curves, with bounds on center points specified.
 # works well??
 def fit_n_gaussian_center_bounds(x, b_bounds):
-
+    global param_count
+    global param_sums
     if len(b_bounds[0]) != len(b_bounds[1]):
         return "bounds have different lengths"
 
@@ -322,7 +324,6 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
         a.append((-1e20, 1e20))
         c.append((-1, 0))
         d.append((-1e20, 1e20))
-
     for i in range(sz):
         curr_bound = b_bounds[i]
         if np.isinf(curr_bound[0]) or np.isinf(curr_bound[1]):
@@ -345,6 +346,7 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
     # print(len(b_guesses))
     # print(len(c_guesses))
     # print(len(d_guesses))
+
     if param_count==0:
         guesses=flatten_guesses(a_guesses,b_guesses,c_guesses,d_guesses)
     else:
@@ -357,13 +359,21 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
             print("bound at index "+ str(i)+" violates le/gt relationship")
     print("bounds: "+str(bounds))
     print("guesses: "+str(guesses))
-    params = curve_fit(f=CURVE_FIT_5_skewed_gaussian, xdata=np.linspace(0, len(x), len(x)),
-                       ydata=x,
-                       p0=guesses,
+
+    for i in range(len(x)):
+        element = x[i]
+        if np.isinf(element) or np.isnan(element):
+            x[i]=0
+    
+    params, _ = curve_fit(f=CURVE_FIT_5_skewed_gaussian, xdata=np.linspace(0, len(x), len(x)),
+                    ydata=x,
+                    p0=guesses,
                     #    bounds=bounds,
-                       method='lm')
+                    method='lm')
+    print("params: "+str(params))
     # X0 must be one-dimensional...let's flatten the array.
-    param_sums+=params
+    for i in range(len(params)):
+        param_sums[i%4]+=params[i]
     param_count+=1
     return params
 
@@ -449,7 +459,7 @@ x
 
 # %%
 # Data paths
-dir_path = '/home/guarian/HOME/coding/python/voytek_lab/ecg_param/data/'
+dir_path = '../data/'
 files_dat = [i for i in sorted(os.listdir(dir_path)) if i.endswith('dat')]
 files_hea = [i for i in sorted(os.listdir(dir_path)) if i.endswith('hea')]
 files_hea = [i for i in files_hea if i != '0400.hea'] # missing one participant's data
@@ -863,18 +873,15 @@ for DATA_ID in range(0,len(files_dat)):
     gaussians = []
 
     for i in range(len(windowed_data_collection)):
-        try:
-            result,cov = fit_n_gaussian_center_bounds(
-                x=windowed_data_collection[i],
-                b_bounds=[(p[i]-30,p[i]+30),
-                        (q[i]-30,q[i]+30),
-                        (r[i]-30,r[i]+30),
-                        (s[i]-30,s[i]+30),
-                        (t[i]-30,t[i]+30)])
-            
-            gaussians.append(result)
-        except:
-            gaussians.append(np.zeros(20))
+        result = fit_n_gaussian_center_bounds(
+            x=windowed_data_collection[i],
+            b_bounds=[(p[i]-30,p[i]+30),
+                    (q[i]-30,q[i]+30),
+                    (r[i]-30,r[i]+30),
+                    (s[i]-30,s[i]+30),
+                    (t[i]-30,t[i]+30)])
+        print(result)
+        gaussians.append(result)
     print(len(gaussians))
 
 
@@ -942,6 +949,8 @@ for DATA_ID in range(0,len(files_dat)):
     score_indices = np.argsort(scores)
     score_indices = np.flip(score_indices)
     print(len(score_indices))
+    print(len(gaussians))
+    print(len(smoothed_windowed_data_collection))
     print(df.shape)
     print(res.shape)
     # print(scores)
@@ -969,6 +978,7 @@ for DATA_ID in range(0,len(files_dat)):
     result_df.to_csv("result_"+str(DATA_ID)+".csv")
 
     # %%
+
 
     # for i in score_indices[1:10]:
     #     plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
