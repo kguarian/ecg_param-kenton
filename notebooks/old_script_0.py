@@ -201,7 +201,7 @@ def flatten_guesses(a, b, c, d):
     for i in range(len(a)):
         for j in range(len(lists)):
             guesses.append(lists[j][i])        
-    # print(len(guesses))
+    print(len(guesses))
     return guesses
 
 # inverse to flatten_guesses
@@ -238,7 +238,7 @@ def print_list_shape(list):
     shadow=list
     try:
         while len(shadow) > 0:
-            # print(len(shadow))
+            print(len(shadow))
             shadow=shadow[0]
     except:
         return
@@ -358,15 +358,14 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
     for i in range(len(bounds[0])):
         if bounds[0][i] >= bounds[1][i]:
             print("bound at index "+ str(i)+" violates le/gt relationship")
-    # print("bounds: "+str(bounds))
-    # print("guesses: "+str(guesses))
+    print("bounds: "+str(bounds))
+    print("guesses: "+str(guesses))
 
     for i in range(len(x)):
         element = x[i]
         if np.isinf(element) or np.isnan(element):
             x[i]=0
     
-    # TODO: figure out why df doesn't have 4 gaussians per entry
     params, _ = curve_fit(f=CURVE_FIT_5_skewed_gaussian, xdata=np.linspace(0, len(x), len(x)),
                     ydata=x,
                     p0=guesses,
@@ -374,7 +373,7 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
                     # we usually use lm
                     method='lm',
                     maxfev=100000)
-    # print("params: "+str(params))
+    print("params: "+str(params))
     # X0 must be one-dimensional...let's flatten the array.
     for i in range(len(params)):
         param_sums[i%4]+=params[i]
@@ -479,9 +478,7 @@ dir_path = '/Users/kenton/HOME/coding/python/ecg_param-kenton/data'
 files_dat = [i for i in sorted(os.listdir(dir_path)) if i.endswith('dat')]
 files_hea = [i for i in sorted(os.listdir(dir_path)) if i.endswith('hea')]
 files_hea = [i for i in files_hea if i != '0400.hea'] # missing one participant's data
-# for DATA_ID in MULTIPLE_DATA_IDS:
-for DATA_ID in range(0,50):
-    print(DATA_ID)
+for DATA_ID in MULTIPLE_DATA_IDS:
     # Extract single subject
     sigs, metadata = extract_data(
         os.path.join(dir_path, files_dat[DATA_ID]),
@@ -518,7 +515,7 @@ for DATA_ID in range(0,50):
     # data, fs = np.array(shorten(data,1000,500))
     sig_filt = filter_signal(sig_filt, fs, 'bandstop', f_range=(40,55), filter_type='iir', butterworth_order=3)
     times = np.arange(0, sig_filt.shape[0])
-    # print(times)
+    print(times)
 
     ts = sig_filt
 
@@ -534,7 +531,7 @@ for DATA_ID in range(0,50):
     datalen = len(data)
     # https://www.statsmodels.org/dev/generated/statsmodels.nonparametric.smoothers_lowess.lowess.html
     data_smoothed = linear_smoothing(sig_filt,H_VAL)
-    # print(data_smoothed)
+    print(data_smoothed)
     # plt.plot(times, data_smoothed)
 
 
@@ -597,15 +594,15 @@ for DATA_ID in range(0,50):
     t = np.zeros(len(idx_rvals))
     u = np.zeros(len(idx_rvals))
     qs = np.zeros(len(idx_rvals))
-    windowed_data_collection = [None] * len(idx_rvals)
-    smoothed_windowed_data_collection = [None] * len(idx_rvals)
+    windowed_data_collection = []
+    smoothed_windowed_data_collection = []
     rolling_index = 0
-    cycle_starts = np.zeros(len(idx_rvals))
-    cycle_lengths = np.zeros(len(idx_rvals))
+    cycle_starts = []
+    cycle_lengths = []
     # failing_cases = [478, 575]
     errstring = 'Failing case: '
     for idx, cycle in enumerate(idx_rvals[:]):
-        # print(idx)
+        print(idx)
         # if idx in failing_cases:
         #     continue
         times = np.arange(0, sig_filt.shape[0])
@@ -623,11 +620,87 @@ for DATA_ID in range(0,50):
         # get data window
         windowed_data = sig_filt[window_cycle_pre:window_cycle_post]
         windowed_smoothed_data = data_smoothed[window_cycle_pre:window_cycle_post]
+        # P peaks
+        r_idx = 299
+        r_idx, _ = find_max(windowed_data, r_idx-50, r_idx+50)
+        if r_idx == -1 or r_idx == len(windowed_data):
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+        q_idx = time_series_polarity_change(
+            time_series=windowed_smoothed_data, idx=r_idx, offset=H_VAL, direction=-1)
+        if q_idx == -1:
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+            
+        p_idx = time_series_polarity_change(
+            time_series=windowed_smoothed_data, idx=q_idx, offset=H_VAL, direction=-1)
+        if p_idx == -1:
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+        smooth_r_idx, _ = find_max(
+            time_series=windowed_smoothed_data, left=0, right=len(windowed_smoothed_data))
+        if smooth_r_idx == -1 or smooth_r_idx == len(windowed_smoothed_data):
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+        p_idx, _ = find_max(time_series=windowed_smoothed_data,
+                            left=0, right=q_idx)
+        if p_idx == -1 or p_idx == len(windowed_smoothed_data):
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+        # print(smooth_r_idx)
+        r_increase_or_decrease = disc_derivative(
+            time_series=windowed_data, x_val=smooth_r_idx, h_val=1)
+        if r_increase_or_decrease > 0:
+            smooth_r_idx = smooth_r_idx+25
+        s_idx = time_series_polarity_change(
+            time_series=windowed_smoothed_data, idx=smooth_r_idx, offset=5, direction=1)
+        if s_idx == -1:
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+        # print(s_idx)
+        t_idx, _ = find_max(time_series=windowed_smoothed_data,
+                            left=s_idx, right=len(windowed_smoothed_data))
+        if t_idx == -1 or t_idx == len(windowed_smoothed_data):
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+        # print(t_idx)
+        left_u_bound = time_series_polarity_change(
+            time_series=windowed_smoothed_data, idx=t_idx, offset=H_VAL, direction=1)
+        right_u_bound = time_series_polarity_change(time_series=windowed_smoothed_data, idx=len(
+            windowed_smoothed_data)-1, offset=H_VAL, direction=-1)
+        u_idx, _ = find_max(time_series=windowed_smoothed_data,
+                            left=left_u_bound, right=right_u_bound)
         
-        windowed_data_collection[idx]=windowed_data
-        smoothed_windowed_data_collection[idx]=windowed_smoothed_data
-        cycle_starts[idx]=window_cycle_pre
-        cycle_lengths[idx]=len(windowed_data)
+        if left_u_bound == -1 or right_u_bound == -1 or u_idx == -1 or u_idx == len(windowed_smoothed_data):
+            #print(errstring + str(idx))
+            # failing_cases.append(idx)
+            continue
+
+        # Now we use the real (adjusted) R value.
+        r_idx = 299
+
+        # adding these to an array to make the matplotlib stuff faster.
+        # I think it replots the whole graph each time plot is called,
+        # so I'll call it once. Can't hurt
+        # It Worked!!!!!
+        p[idx]=p_idx
+        q[idx]=q_idx
+        r[idx]=r_idx
+        s[idx]=s_idx
+        t[idx]=t_idx
+        u[idx]=u_idx
+        qs[idx]=s_idx-q_idx
+        windowed_data_collection.append(windowed_data)
+        smoothed_windowed_data_collection.append(windowed_smoothed_data)
+        cycle_starts.append(window_cycle_pre)
+        cycle_lengths.append(len(windowed_data))
 
         # was just using
         # plt.plot(windowed_times, sig_filt[window_cycle_pre:window_cycle_post], 'b', alpha=0.8)
@@ -721,9 +794,6 @@ for DATA_ID in range(0,50):
     gaussians = []
 
     for i in range(len(windowed_data_collection)):
-        # print(windowed_data_collection[i])
-        # if windowed_data_collection[i] is None:
-        #     gaussians.append()
         result = fit_n_gaussian_center_bounds(
             x=windowed_data_collection[i],
             b_bounds=[(p[i]-30,p[i]+30),
@@ -731,19 +801,24 @@ for DATA_ID in range(0,50):
                     (r[i]-30,r[i]+30),
                     (s[i]-30,s[i]+30),
                     (t[i]-30,t[i]+30)])
-        # print(result)
+        print(result)
         gaussians.append(result)
-    # print(len(gaussians))
+    print(len(gaussians))
 
 
     # %%
-    gauss_sigs =[None] * len(gaussians)
+    gauss_sigs =[]
 
     print(len(gaussians))
 
     for i in range(len(gaussians)):
-        # print(i)
-        gauss_sigs[i]=gaussians[i]
+        print(i)
+        currgaussian = gaussians[i]
+        gaussian_to_append = []
+        for j in range(len(currgaussian)):
+            # if j%4!=1:
+            #     gaussian_to_append.append(currgaussian[j])
+            gauss_sigs.append(gaussian_to_append)
         
     print(len(gauss_sigs))
 
@@ -773,12 +848,12 @@ for DATA_ID in range(0,50):
     # resdata = [np.zeros(lenres),np.zeros(lenres),np.zeros(lenres),np.zeros(lenres)]
 
     # %%
-    new_sigs =[None] * len(windowed_data_collection)
-    results = [None] * len(smoothed_windowed_data_collection)
-    # curr_result=[None] * len(smoothed_windowed_data_collection)
+    new_sigs =[]
+    results = []
+    curr_result=[]
 
     for i in range(len(windowed_data_collection)):
-        new_sigs[i]=windowed_data_collection[i]
+        new_sigs.append(windowed_data_collection[i])
         
     print(len(new_sigs))
 
@@ -804,7 +879,11 @@ for DATA_ID in range(0,50):
     # print(len(score_indices))
 
     for idx in range(0,len(smoothed_windowed_data_collection)):
-        results[idx]=[idx,gaussians[idx],score_indices[idx], scores[idx]]
+        curr_result.append(idx)
+        curr_result.append(gaussians[idx])
+        curr_result.append(score_indices[idx])
+        curr_result.append(scores[idx])
+        results.append(curr_result)
 
     # df.to_csv("signal_corr_"+str(DATA_ID)+".csv")
     # sc = pd.DataFrame(scores)
@@ -824,21 +903,18 @@ for DATA_ID in range(0,50):
     plt.show()
     # for i in score_indices[1:10]:
     #     plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
+    fig1=plt.figure("best fits")
+    plt.title("plot of best fits, no U-separation yet.")
+    for i in score_indices[0:10]:
+        plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
+        # plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), n_skewed_gaussian(*gaussians[i]))
 
-    # #TODO: uncomment block. I commented it out for benchmarking.
-    # fig1=plt.figure("best fits")
-    # plt.title("plot of best fits, no U-separation yet.")
-    # for i in score_indices[0:10]:
-    #     plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
-    #     # plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), n_skewed_gaussian(*gaussians[i]))
-
-    # fig2=plt.figure("worst fits")
-    # plt.title("plots of worst fits, no u separation yet")
-    # for i in score_indices[-10:-1]:
-    #     #TODO: reinstate top plot. I took it out for 
-    #     plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
-    #     # plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), n_skewed_gaussian(*gaussians[i]))
-    # plt.show()
+    fig2=plt.figure("worst fits")
+    plt.title("plots of worst fits, no u separation yet")
+    for i in score_indices[-10:-1]:
+        plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
+        # plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), n_skewed_gaussian(*gaussians[i]))
+    plt.show()
 
     # %%
 
