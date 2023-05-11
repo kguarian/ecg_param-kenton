@@ -7,7 +7,6 @@ from click import getchar
 from tqdm.notebook import tqdm
 
 import math
-import sys
 import threading
 
 import matplotlib.pyplot as plt
@@ -352,7 +351,6 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
 
     if param_count==0:
         guesses=flatten_guesses(a_guesses,b_guesses,c_guesses,d_guesses)
-        print(len(guesses))
     else:
         guesses = np.zeros(4)
         for i in range(len(param_sums)):
@@ -382,7 +380,6 @@ def fit_n_gaussian_center_bounds(x, b_bounds):
     for i in range(len(params)):
         param_sums[i%4]+=params[i]
     param_count+=1
-    print(len(params))
     return params
 
 
@@ -648,32 +645,26 @@ for DATA_ID in range(0,50):
         # plt.plot(windowed_times[u_idx], sig_filt[u_idx], 'o')
     print("all cycles plotted")
 
-
-    ### DO NOT DELETE: THIS IS A CODE SNIPPET THAT PLOTS THE 
-    ### AVERAGE SIGNAL THICKLY AND THE SIGNALS OVER IT, LIGHTLY.
-    ### THEN IT DOES A PEARSON CORRELATION OF EACH SIGNAL TO THE
-    ### AVERAGE SIGNAL.
-    #
-    # average_signal = np.zeros(900)
-    # average_signal = np.nanmean(windowed_data_collection, 0)
-    # print(average_signal)
-    # # for i in range(len(average_signal)):
-    # #     for j in range(len(windowed_data_collection)):
-    # #         if windowed_data_collection[j][i]==np.nan or windowed_data_collection[j][i]==np.inf or windowed_data_collection[j][i]==-np.inf:
-    # #             continue
-    # #         else:
-    # #             average_signal[i]+=windowed_data_collection[j][i]
-    # #     average_signal[i]=average_signal[i]/float(len(windowed_data_collection))
-    # for i in range(np.shape(windowed_data_collection)[0]):
-    #     plt.plot(windowed_times, windowed_data_collection[i], 'r', alpha=0.05)
-    #     result = pearsonr(np.nan_to_num(windowed_data_collection[i], copy=False, nan=0.0, posinf=0.0, neginf=0.0), average_signal)
-    #     print(result)
-    #     #sys.__exit__(3)
+    average_signal = np.zeros(900)
+    average_signal = np.nanmean(windowed_data_collection, 0)
+    print(average_signal)
+    # for i in range(len(average_signal)):
+    #     for j in range(len(windowed_data_collection)):
+    #         if windowed_data_collection[j][i]==np.nan or windowed_data_collection[j][i]==np.inf or windowed_data_collection[j][i]==-np.inf:
+    #             continue
+    #         else:
+    #             average_signal[i]+=windowed_data_collection[j][i]
+    #     average_signal[i]=average_signal[i]/float(len(windowed_data_collection))
+    for i in range(np.shape(windowed_data_collection)[0]):
+        plt.plot(windowed_times, windowed_data_collection[i], 'r', alpha=0.05)
+        result = pearsonr(np.nan_to_num(windowed_data_collection[i], copy=False, nan=0.0, posinf=0.0, neginf=0.0), average_signal)
+        print(result)
+        #sys.__exit__(3)
 
     
     
-    # plt.plot(windowed_times, average_signal, 'b', alpha=1)
-    # plt.show()
+    plt.plot(windowed_times, average_signal, 'b', alpha=1)
+    plt.show()
     # plt.draw()
 
     # print("failing_cases: " + str(failing_cases))
@@ -852,7 +843,7 @@ for DATA_ID in range(0,50):
 
     # %%
 
-    # plt.show()
+    plt.show()
     # for i in score_indices[1:10]:
     #     plt.plot(np.linspace(0,len(windowed_data_collection[i]),len(windowed_data_collection[i])), windowed_data_collection[i])
 
